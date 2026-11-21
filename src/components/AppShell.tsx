@@ -7,28 +7,23 @@ import {
   LayoutDashboard, 
   Briefcase, 
   FileText, 
-  Sparkles, 
-  Search, 
-  Calendar, 
-  Users, 
-  BarChart3, 
-  Plus, 
-  Upload, 
+  Layers, 
+  ArrowLeftRight, 
+  MessageSquare, 
+  User, 
   Scale, 
   Bell, 
-  Crown, 
   ChevronDown, 
   LogOut, 
-  User, 
   ShieldCheck, 
   Lock, 
   ArrowRight,
-  MessageSquare,
-  FileSearch,
-  ExternalLink
+  ExternalLink,
+  Search
 } from 'lucide-react';
 import { getAuthUser, clearAuth, AuthUser } from '@/lib/authStore';
 import { getStoredCases } from '@/lib/caseStore';
+import { getStoredEnquiries } from '@/lib/enquiryStore';
 import { DEMO_CASE_ID } from '@/lib/demoCaseData';
 
 interface AppShellProps {
@@ -44,12 +39,26 @@ export function AppShell({ children, activeNav = 'dashboard', breadcrumb = 'Dash
   const [mounted, setMounted] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [cases, setCases] = useState<any[]>([]);
+  const [pendingEnquiriesCount, setPendingEnquiriesCount] = useState(0);
 
   useEffect(() => {
     setMounted(true);
-    setAuthUserLocal(getAuthUser());
+    const user = getAuthUser();
+    setAuthUserLocal(user);
 
-    const onAuth = () => setAuthUserLocal(getAuthUser());
+    const storedCases = getStoredCases();
+    setCases(storedCases);
+
+    const enquiries = getStoredEnquiries(user?.id, user?.email);
+    setPendingEnquiriesCount(enquiries.filter(e => e.status === 'pending').length);
+
+    const onAuth = () => {
+      const u = getAuthUser();
+      setAuthUserLocal(u);
+      setPendingEnquiriesCount(getStoredEnquiries(u?.id, u?.email).filter(e => e.status === 'pending').length);
+    };
+
     window.addEventListener('auth_changed', onAuth);
     window.addEventListener('storage', onAuth);
     return () => {
@@ -65,25 +74,42 @@ export function AppShell({ children, activeNav = 'dashboard', breadcrumb = 'Dash
     router.push('/');
   };
 
-  const displayName = authUser?.name ?? 'Adv. Arjun Mehta';
-  const displayRole = authUser?.barNumber ? `Bar: ${authUser.barNumber}` : 'Senior Advocate';
+  const primaryCaseId = cases.length > 0 ? cases[0].id : DEMO_CASE_ID;
+  const displayName = authUser?.name ?? 'Adv. Rajeshwar Sharma';
+  const displayRole = authUser?.barNumber ? `Bar: ${authUser.barNumber}` : 'High Court Advocate';
 
+  // Real Navigation Items - ONLY original actual features, in the new midnight-purple design
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', href: '/workspace/dashboard', icon: LayoutDashboard },
-    { id: 'cases', label: 'Cases', href: '/workspace/cases', icon: Briefcase },
-    { id: 'documents', label: 'Documents', href: `/workspace/cases/${DEMO_CASE_ID}?tab=evidence`, icon: FileText },
-    { id: 'assistant', label: 'AI Legal Assistant', href: `/workspace/cases/${DEMO_CASE_ID}`, icon: Sparkles },
-    { id: 'research', label: 'Research', href: '/resources', icon: Search },
-    { id: 'calendar', label: 'Calendar & Deadlines', href: '/workspace/dashboard#hearings', icon: Calendar },
-    { id: 'team', label: 'Team', href: '/workspace/handoffs', icon: Users },
-    { id: 'analytics', label: 'Analytics', href: '/workspace/dashboard#distribution', icon: BarChart3 },
+    { 
+      id: 'enquiries', 
+      label: 'Client Enquiries', 
+      href: '/workspace/enquiries', 
+      icon: MessageSquare,
+      badge: pendingEnquiriesCount > 0 ? pendingEnquiriesCount : undefined
+    },
+    { id: 'cases', label: 'Active Cases', href: '/workspace/cases', icon: Briefcase },
+    { 
+      id: 'workspace', 
+      label: 'Case Intelligence', 
+      href: `/workspace/cases/${primaryCaseId}`, 
+      icon: Layers 
+    },
+    { 
+      id: 'documents', 
+      label: 'Case Documents', 
+      href: `/workspace/cases/${primaryCaseId}/documents`, 
+      icon: FileText 
+    },
+    { id: 'handoffs', label: 'Secure Handoffs', href: '/workspace/handoffs', icon: ArrowLeftRight },
+    { id: 'profile', label: 'Advocate Profile', href: '/workspace/profile', icon: User },
   ];
 
   // Access Control Guard
   if (mounted && (!authUser || authUser.role !== 'lawyer')) {
     const isPublicUser = authUser?.role === 'public';
     return (
-      <div className="min-h-screen bg-[#0E0C28] text-slate-100 flex flex-col justify-center items-center p-6 relative overflow-hidden">
+      <div className="min-h-screen bg-[#0D0B26] text-slate-100 flex flex-col justify-center items-center p-6 relative overflow-hidden">
         <div className="absolute top-1/4 -left-20 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
 
@@ -103,7 +129,7 @@ export function AppShell({ children, activeNav = 'dashboard', breadcrumb = 'Dash
           <p className="text-slate-300 text-sm mb-6 leading-relaxed">
             {isPublicUser ? (
               <>
-                You are currently signed in as a citizen. This workspace is reserved for registered advocates and legal counsel.
+                You are currently signed in as a citizen. This workspace is reserved exclusively for registered advocates and legal counsel.
               </>
             ) : (
               <>
@@ -137,10 +163,10 @@ export function AppShell({ children, activeNav = 'dashboard', breadcrumb = 'Dash
   return (
     <div className="min-h-screen flex bg-[#F8FAFD] font-sans text-slate-900">
       {/* ========================================================================= */}
-      {/* SIDEBAR: EXACT MIDNIGHT-PURPLE THEME FROM REFERENCE IMAGE                */}
+      {/* SIDEBAR: CLEAN MIDNIGHT-PURPLE THEME (NO PRO PLAN, NO QUICK ACTIONS)      */}
       {/* ========================================================================= */}
       <aside className="w-64 bg-[#0D0B26] text-white flex flex-col justify-between shrink-0 border-r border-[#1D1945] shadow-2xl hidden md:flex fixed h-full z-30">
-        <div className="overflow-y-auto">
+        <div className="overflow-y-auto flex-1">
           {/* Logo & Subtitle */}
           <div className="px-5 py-6">
             <Link href="/workspace/dashboard" className="flex items-center gap-3">
@@ -152,13 +178,13 @@ export function AppShell({ children, activeNav = 'dashboard', breadcrumb = 'Dash
                   CaseKeeper
                 </span>
                 <span className="text-[10px] text-purple-300 font-medium tracking-wide">
-                  AI-Powered Case Management
+                  Case Continuity Platform
                 </span>
               </div>
             </Link>
           </div>
 
-          {/* Navigation Links */}
+          {/* Navigation Links: ONLY REAL FEATURES */}
           <nav className="px-3.5 space-y-1 text-xs">
             {navItems.map((item) => {
               const IconComp = item.icon;
@@ -176,68 +202,36 @@ export function AppShell({ children, activeNav = 'dashboard', breadcrumb = 'Dash
                 >
                   <IconComp className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
                   <span className="flex-1">{item.label}</span>
+                  {item.badge !== undefined && item.badge > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-slate-900 leading-none">
+                      {item.badge}
+                    </span>
+                  )}
                 </Link>
               );
             })}
           </nav>
-
-          {/* Quick Actions Section */}
-          <div className="px-4 mt-7 space-y-2">
-            <div className="text-[11px] font-semibold text-slate-400 tracking-wide uppercase px-1">
-              Quick Actions
-            </div>
-
-            {/* + New Case Button */}
-            <Link
-              href="/workspace/cases/new"
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] hover:opacity-95 text-white font-bold text-xs shadow-md shadow-purple-900/30 transition-transform active:scale-[0.98]"
-            >
-              <Plus className="w-4 h-4" />
-              <span>New Case</span>
-            </Link>
-
-            {/* Upload Documents */}
-            <Link
-              href={`/workspace/cases/${DEMO_CASE_ID}?tab=evidence`}
-              className="w-full flex items-center gap-2.5 py-2 px-3 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 text-xs transition-colors"
-            >
-              <Upload className="w-4 h-4 text-slate-400" />
-              <span>Upload Documents</span>
-            </Link>
-
-            {/* Ask AI */}
-            <Link
-              href={`/workspace/cases/${DEMO_CASE_ID}`}
-              className="w-full flex items-center gap-2.5 py-2 px-3 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 text-xs transition-colors"
-            >
-              <Sparkles className="w-4 h-4 text-purple-400" />
-              <span>Ask AI</span>
-            </Link>
-          </div>
         </div>
 
-        {/* Pro Plan Bottom Card */}
-        <div className="p-4">
-          <div className="bg-[#171438] border border-[#2B255C] rounded-2xl p-3.5 space-y-2 shadow-inner">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Crown className="w-4 h-4 text-amber-400 fill-amber-400" />
-                <span className="text-xs font-bold text-white">Pro Plan</span>
+        {/* Advocate Profile Strip at Bottom of Sidebar */}
+        <div className="p-4 border-t border-[#1D1945] bg-[#0A0820]">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5 overflow-hidden">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-inner shrink-0">
+                {displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
               </div>
-              <span className="text-[10px] text-purple-300 font-semibold bg-purple-950/80 px-2 py-0.5 rounded border border-purple-800/40">
-                Active
-              </span>
+              <div className="overflow-hidden">
+                <p className="text-xs font-bold text-white truncate">{displayName}</p>
+                <p className="text-[10px] text-slate-400 truncate">{displayRole}</p>
+              </div>
             </div>
-
-            <div className="flex justify-between items-center text-[11px] text-slate-400 font-medium">
-              <span>AI credits:</span>
-              <span className="text-slate-200 font-bold font-mono">847 / 1,000</span>
-            </div>
-
-            {/* Purple Progress Bar */}
-            <div className="w-full h-1.5 bg-[#251F4E] rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-purple-500 to-indigo-400 rounded-full w-[84.7%]" />
-            </div>
+            <button
+              onClick={handleLogout}
+              title="Sign Out"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-white/5 transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </aside>
@@ -247,7 +241,7 @@ export function AppShell({ children, activeNav = 'dashboard', breadcrumb = 'Dash
       {/* ========================================================================= */}
       <div className="flex-1 flex flex-col md:pl-64 min-w-0">
         
-        {/* Top App Header: Exact Clean Search Bar + Notification + Profile Dropdown */}
+        {/* Top App Header */}
         <header className="h-18 bg-white border-b border-slate-200/80 sticky top-0 z-20 px-6 flex items-center justify-between gap-4">
           
           {/* Search Input Bar with ⌘K Badge */}
@@ -257,7 +251,7 @@ export function AppShell({ children, activeNav = 'dashboard', breadcrumb = 'Dash
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search cases, documents, laws, judgments..."
+              placeholder="Search cases, dockets, parties, CNR numbers..."
               className="w-full pl-10 pr-12 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-slate-800 placeholder-slate-400 bg-slate-50/50 hover:bg-white transition-colors"
             />
             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-0.5 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold text-slate-500">
@@ -269,14 +263,17 @@ export function AppShell({ children, activeNav = 'dashboard', breadcrumb = 'Dash
           {/* Right Header: Notification Bell + User Profile */}
           <div className="flex items-center gap-4">
             
-            {/* Notification Bell */}
-            <button 
-              type="button"
+            {/* Notification Bell with Real Pending Enquiries Dot */}
+            <Link 
+              href="/workspace/enquiries"
               className="relative p-2 rounded-xl text-slate-500 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+              title="Citizen Enquiries"
             >
               <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-purple-600 ring-2 ring-white" />
-            </button>
+              {pendingEnquiriesCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-purple-600 ring-2 ring-white" />
+              )}
+            </Link>
 
             {/* User Profile Pill */}
             <div className="relative">
@@ -286,7 +283,7 @@ export function AppShell({ children, activeNav = 'dashboard', breadcrumb = 'Dash
                 className="flex items-center gap-3 p-1.5 rounded-xl hover:bg-slate-50 transition-colors"
               >
                 <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-sm ring-2 ring-purple-100 overflow-hidden">
-                  <span className="text-xs">AM</span>
+                  <span>{displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}</span>
                 </div>
                 <div className="text-left hidden sm:block">
                   <p className="text-xs font-bold text-slate-900 leading-tight flex items-center gap-1">
@@ -302,7 +299,7 @@ export function AppShell({ children, activeNav = 'dashboard', breadcrumb = 'Dash
                 <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 text-xs animate-scale-in">
                   <div className="p-2 border-b border-slate-100">
                     <p className="font-bold text-slate-900">{displayName}</p>
-                    <p className="text-[10px] text-slate-500">{authUser?.email || 'arjun.mehta@delhibar.org'}</p>
+                    <p className="text-[10px] text-slate-500">{authUser?.email || 'advocate@casekeeper.in'}</p>
                   </div>
                   <Link
                     href="/workspace/profile"

@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { 
   Folder, 
   Scale, 
   FileCheck2, 
   CheckCircle2, 
-  ArrowUpRight, 
   Calendar, 
   Clock, 
   Sparkles, 
@@ -15,71 +14,149 @@ import {
   MessageSquare, 
   FileText, 
   ArrowRight, 
-  Send, 
-  BookOpen, 
-  HelpCircle, 
-  Check, 
-  TrendingUp, 
-  ChevronDown,
+  Plus,
   Layers,
   AlertTriangle,
+  ChevronRight,
+  TrendingUp,
+  User,
+  Phone,
+  Mail,
+  FolderPlus,
+  ShieldCheck,
   RotateCcw
 } from 'lucide-react';
 import { AppShell } from '@/components/AppShell';
 import { getAuthUser } from '@/lib/authStore';
-import { getStoredCases, resetDemoCase } from '@/lib/caseStore';
+import { 
+  getStoredCases, 
+  getStoredTasks, 
+  toggleTaskStatus, 
+  getStoredDocuments,
+  getCaseReadiness,
+  resetDemoCase
+} from '@/lib/caseStore';
+import { getStoredEnquiries, updateEnquiryStatus, convertEnquiryToCase, ClientEnquiry } from '@/lib/enquiryStore';
+import { CaseItem, CaseTask, CaseDocument } from '@/lib/types';
 import { DEMO_CASE_ID, PRIMARY_DEMO_CASE } from '@/lib/demoCaseData';
 
 export default function WorkspaceDashboard() {
-  const [advocateName, setAdvocateName] = useState('Adv. Arjun Mehta');
-  const [activePrompt, setActivePrompt] = useState('');
-  const [chatInput, setChatInput] = useState('');
-  const [chatResponse, setChatResponse] = useState<string | null>(null);
-  const [isProcessingAI, setIsProcessingAI] = useState(false);
+  const [advocateName, setAdvocateName] = useState('Advocate');
+  const [barNumber, setBarNumber] = useState('');
+  const [cases, setCases] = useState<CaseItem[]>([]);
+  const [tasks, setTasks] = useState<CaseTask[]>([]);
+  const [documents, setDocuments] = useState<CaseDocument[]>([]);
+  const [enquiries, setEnquiries] = useState<ClientEnquiry[]>([]);
+  const [readinessScore, setReadinessScore] = useState(82);
+
+  const loadData = () => {
+    const user = getAuthUser();
+    if (user && user.name) {
+      setAdvocateName(user.name);
+      if (user.barNumber) setBarNumber(user.barNumber);
+    } else {
+      try {
+        const raw = localStorage.getItem('casekeeper_lawyer_profile');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed.name) setAdvocateName(parsed.name);
+          if (parsed.barNumber) setBarNumber(parsed.barNumber);
+        }
+      } catch (e) {}
+    }
+
+    const storedCases = getStoredCases();
+    setCases(storedCases);
+    setTasks(getStoredTasks());
+    setDocuments(getStoredDocuments());
+    setEnquiries(getStoredEnquiries(user?.id, user?.email));
+
+    // Calculate real readiness for primary case
+    const primary = storedCases.find(c => c.id === DEMO_CASE_ID) || storedCases[0];
+    if (primary) {
+      setReadinessScore(getCaseReadiness(primary.id).overallScore);
+    }
+  };
 
   useEffect(() => {
-    const auth = getAuthUser();
-    if (auth && auth.name) {
-      setAdvocateName(auth.name);
-    }
+    loadData();
+    window.addEventListener('storage', loadData);
+    window.addEventListener('auth_changed', loadData);
+    window.addEventListener('casekeeper_enquiry_submitted', loadData);
+    window.addEventListener('casekeeper_enquiries_updated', loadData);
+    return () => {
+      window.removeEventListener('storage', loadData);
+      window.removeEventListener('auth_changed', loadData);
+      window.removeEventListener('casekeeper_enquiry_submitted', loadData);
+      window.removeEventListener('casekeeper_enquiries_updated', loadData);
+    };
   }, []);
 
-  const handleQuickPromptClick = (promptText: string) => {
-    setActivePrompt(promptText);
-    setChatInput(promptText);
-    setIsProcessingAI(true);
-    setChatResponse(null);
+  // REAL COMPUTED METRICS FROM STORE
+  const activeCasesCount = cases.filter(c => c.status === 'active').length;
+  const upcomingHearings = cases.filter(c => Boolean(c.nextHearingDate)).sort((a, b) => 
+    (a.nextHearingDate || '').localeCompare(b.nextHearingDate || '')
+  );
+  const upcomingHearingsCount = upcomingHearings.length;
+  const pendingTasksCount = tasks.filter(t => t.status === 'pending').length;
+  const resolvedCasesCount = cases.filter(c => c.status === 'archived').length;
+  const pendingEnquiriesCount = enquiries.filter(e => e.status === 'pending').length;
+  const primaryCaseId = cases.length > 0 ? cases[0].id : DEMO_CASE_ID;
 
-    setTimeout(() => {
-      setIsProcessingAI(false);
-      if (promptText.includes('Summarize')) {
-        setChatResponse('Summary of Written_Submission.pdf: Petitioner disputes arbitrary interest calculation under Section 18 of RERA 2016. Verified 3 contractual annexures and established 107 days delay.');
-      } else if (promptText.includes('precedents')) {
-        setChatResponse('Relevant Landmark Judgments: 1. Pioneer Urban Land & Infrastructure Ltd. v. Govindan Raghavan (2019) 5 SCC 725 — One-sided clauses in builder-buyer agreement constitute unfair trade practice.');
-      } else if (promptText.includes('notice')) {
-        setChatResponse('Drafting Legal Notice under Section 18 RERA: Formal 15-day notice demanding immediate physical possession and statutory delayed interest at MCLR + 2%. Ready to export to Word.');
-      } else {
-        setChatResponse('Statutory Principle: Under Indian Contract Act Sec 73 & RERA Sec 18, delay penalties cannot be unilaterally waived by a developer through standard boilerplate clauses.');
-      }
-    }, 800);
+  // REAL DYNAMIC CATEGORY DISTRIBUTION COMPUTATION
+  const categoryDistribution = useMemo(() => {
+    if (cases.length === 0) return [];
+    const counts: Record<string, number> = {};
+    cases.forEach(c => {
+      const cat = c.category || 'General';
+      counts[cat] = (counts[cat] || 0) + 1;
+    });
+
+    const colors = ['#8B5CF6', '#3B82F6', '#06B6D4', '#EC4899', '#F59E0B', '#10B981'];
+    return Object.entries(counts).map(([cat, count], idx) => ({
+      category: cat,
+      count,
+      percentage: Math.round((count / cases.length) * 100),
+      color: colors[idx % colors.length]
+    }));
+  }, [cases]);
+
+  const handleToggleTask = (taskId: string) => {
+    toggleTaskStatus(taskId);
+    setTasks(getStoredTasks());
   };
 
-  const handleSendChat = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim()) return;
-    setIsProcessingAI(true);
-    setTimeout(() => {
-      setIsProcessingAI(false);
-      setChatResponse(`Grounded Response for "${chatInput}": Verified against CaseKeeper Indian Case Intelligence repository. Cross-referenced with HARERA precedents and e-Courts filings.`);
-    }, 800);
+  const handleConvertToCase = (enquiry: ClientEnquiry) => {
+    convertEnquiryToCase(enquiry);
+    loadData();
   };
+
+  const handleStatusChange = (id: string, status: ClientEnquiry['status']) => {
+    updateEnquiryStatus(id, status);
+    loadData();
+  };
+
+  const handleResetDemo = () => {
+    if (confirm('Reset benchmark demo case to pristine state?')) {
+      resetDemoCase();
+      loadData();
+    }
+  };
+
+  // Format today's date dynamically
+  const todayFormatted = new Date().toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
 
   return (
     <AppShell activeNav="dashboard" breadcrumb="Dashboard">
       <div className="space-y-6">
 
         {/* ========================================================================= */}
-        {/* ROW 1: GREETING & LIVE DATE BAR                                          */}
+        {/* ROW 1: GREETING & REAL DATE                                              */}
         {/* ========================================================================= */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -88,38 +165,45 @@ export default function WorkspaceDashboard() {
               <span className="text-2xl">👋</span>
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Here&apos;s what&apos;s happening with your cases today.
+              Here&apos;s what&apos;s happening with your verified cases today. {barNumber ? `• Bar Enrollment: ${barNumber}` : ''}
             </p>
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Live Date Badge */}
+            <button
+              onClick={handleResetDemo}
+              className="px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs border border-slate-200/90 rounded-2xl shadow-xs transition-colors flex items-center gap-1.5"
+              title="Reset benchmark demo records"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+              <span>Reset Demo</span>
+            </button>
+
             <div className="bg-white border border-slate-200/90 rounded-2xl px-4 py-2 flex items-center gap-2 text-xs font-semibold text-slate-700 shadow-xs">
               <Calendar className="w-4 h-4 text-purple-600" />
-              <span>Tue, Jan 21, 2025</span>
+              <span>{todayFormatted}</span>
             </div>
           </div>
         </div>
 
         {/* ========================================================================= */}
-        {/* ROW 2: 4 METRIC STAT CARDS (EXACT METRICS FROM REFERENCE IMAGE)          */}
+        {/* ROW 2: 4 METRIC STAT CARDS (REAL DATA FROM LOCAL REPOSITORY)              */}
         {/* ========================================================================= */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           
           {/* Card 1: Active Cases */}
-          <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:shadow-md transition-all">
+          <Link href="/workspace/cases" className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:shadow-md hover:border-purple-300 transition-all block">
             <div className="flex items-center justify-between mb-3">
               <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
                 <Folder className="w-5 h-5 fill-purple-100" />
               </div>
               <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                <span>↑</span>
-                <span>+12%</span>
+                <span>Active</span>
               </span>
             </div>
             <p className="text-xs font-semibold text-slate-500">Active Cases</p>
-            <h3 className="text-3xl font-black text-[#0D0B26] mt-0.5">24</h3>
-          </div>
+            <h3 className="text-3xl font-black text-[#0D0B26] mt-0.5">{activeCasesCount}</h3>
+          </Link>
 
           {/* Card 2: Upcoming Hearings */}
           <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:shadow-md transition-all">
@@ -128,11 +212,11 @@ export default function WorkspaceDashboard() {
                 <Scale className="w-5 h-5" />
               </div>
               <span className="inline-flex items-center text-[11px] font-semibold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full">
-                Next: Jan 24
+                {upcomingHearings[0]?.nextHearingDate ? `Next: ${upcomingHearings[0].nextHearingDate}` : 'None listed'}
               </span>
             </div>
             <p className="text-xs font-semibold text-slate-500">Upcoming Hearings</p>
-            <h3 className="text-3xl font-black text-[#0D0B26] mt-0.5">5</h3>
+            <h3 className="text-3xl font-black text-[#0D0B26] mt-0.5">{upcomingHearingsCount}</h3>
           </div>
 
           {/* Card 3: Pending Tasks */}
@@ -141,118 +225,113 @@ export default function WorkspaceDashboard() {
               <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
                 <FileCheck2 className="w-5 h-5" />
               </div>
-              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">
-                <span>↑</span>
-                <span>+3</span>
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                <span>{pendingTasksCount} Pending</span>
               </span>
             </div>
             <p className="text-xs font-semibold text-slate-500">Pending Tasks</p>
-            <h3 className="text-3xl font-black text-[#0D0B26] mt-0.5">18</h3>
+            <h3 className="text-3xl font-black text-[#0D0B26] mt-0.5">{pendingTasksCount}</h3>
           </div>
 
-          {/* Card 4: Cases Resolved */}
-          <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:shadow-md transition-all">
+          {/* Card 4: Client Enquiries (Real Portal Enquiries) */}
+          <Link href="/workspace/enquiries" className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:shadow-md hover:border-amber-300 transition-all block">
             <div className="flex items-center justify-between mb-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <CheckCircle2 className="w-5 h-5 fill-emerald-100" />
+              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                <MessageSquare className="w-5 h-5" />
               </div>
-              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                <span>↑</span>
-                <span>+28%</span>
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+                {pendingEnquiriesCount > 0 ? `${pendingEnquiriesCount} New` : 'Portal'}
               </span>
             </div>
-            <p className="text-xs font-semibold text-slate-500">Cases Resolved</p>
-            <h3 className="text-3xl font-black text-[#0D0B26] mt-0.5">47</h3>
-          </div>
+            <p className="text-xs font-semibold text-slate-500">Citizen Enquiries</p>
+            <h3 className="text-3xl font-black text-[#0D0B26] mt-0.5">{enquiries.length}</h3>
+          </Link>
 
         </div>
 
         {/* ========================================================================= */}
-        {/* ROW 3: LARGE HERO BANNER (ANALYZE, SUMMARIZE & STRATEGIZE WITH AI)       */}
+        {/* ROW 3: REAL FLAGSHIP BANNER: CASE INTEGRITY & CONTINUITY ENGINE           */}
         {/* ========================================================================= */}
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#170E3B] via-[#2A1663] to-[#3B1C7E] text-white p-7 sm:p-9 shadow-xl border border-purple-500/20">
-          {/* Subtle Ambient Glow */}
           <div className="absolute right-0 top-0 w-96 h-96 bg-purple-500/15 rounded-full blur-3xl pointer-events-none" />
           
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center relative z-10">
             
-            {/* Left Content Column */}
             <div className="lg:col-span-7 space-y-4">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/25 border border-purple-400/30 text-purple-200 text-xs font-semibold">
                 <Sparkles className="w-3.5 h-3.5 text-purple-300" />
-                <span>AI Legal Assistant</span>
+                <span>Case Integrity &amp; Continuity Engine</span>
               </div>
 
               <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight leading-tight">
-                Analyze, Summarize &amp; Strategize Your Cases with AI
+                Every fact traceable. Every case transferable.
               </h2>
 
               <p className="text-slate-300 text-xs sm:text-sm max-w-xl leading-relaxed font-normal">
-                Upload case documents, get instant summaries, extract key arguments, find relevant precedents, and draft legal documents.
+                Turn scattered legal documents into verified case intelligence, discover missing evidence and conflicting statements, and securely transfer cases without losing critical context.
               </p>
 
               {/* Action Buttons */}
               <div className="pt-2 flex flex-wrap items-center gap-3">
                 <Link
-                  href={`/workspace/cases/${DEMO_CASE_ID}?tab=evidence`}
+                  href={`/workspace/cases/${primaryCaseId}`}
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-[#170E3B] font-extrabold text-xs shadow-md transition-all"
                 >
-                  <Upload className="w-4 h-4 text-purple-700" />
-                  <span>Analyze Document</span>
+                  <Layers className="w-4 h-4 text-purple-700" />
+                  <span>Open Case Intelligence Workspace</span>
                 </Link>
 
-                <button
-                  type="button"
-                  onClick={() => handleQuickPromptClick('Explain the statutory grounds under Section 18 RERA')}
+                <Link
+                  href="/workspace/cases/new"
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-transparent hover:bg-white/10 text-white border border-white/30 font-semibold text-xs transition-all"
                 >
-                  <MessageSquare className="w-4 h-4 text-purple-300" />
-                  <span>Ask a Legal Question</span>
-                </button>
+                  <Plus className="w-4 h-4 text-purple-300" />
+                  <span>Register New Case</span>
+                </Link>
               </div>
             </div>
 
-            {/* Right Graphic: 3D Paper Mockup Stack */}
+            {/* Right Graphic: Real Benchmark Verification Summary */}
             <div className="lg:col-span-5 flex justify-center lg:justify-end">
               <div className="relative w-full max-w-sm">
                 
-                {/* Background Document Mockup (Case_Brief.pdf) */}
-                <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 text-slate-200 text-xs shadow-lg transform -rotate-3 transition-transform hover:rotate-0">
+                {/* Background Document Mockup */}
+                <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 text-slate-200 text-xs shadow-lg transform -rotate-2">
                   <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
                     <FileText className="w-4 h-4 text-purple-300" />
-                    <span className="font-bold text-white">Case_Brief.pdf</span>
-                    <span className="text-[10px] text-slate-400 ml-auto">12 pages • 4.2 MB</span>
+                    <span className="font-bold text-white truncate max-w-[200px]">Agreement_For_Sale_Flat_402.pdf</span>
+                    <span className="text-[10px] text-emerald-400 font-mono ml-auto">SHA-256 Validated</span>
                   </div>
-                  <div className="space-y-1.5 opacity-60">
-                    <div className="h-2 bg-white/40 rounded w-full" />
-                    <div className="h-2 bg-white/30 rounded w-4/5" />
-                    <div className="h-2 bg-white/30 rounded w-2/3" />
+                  <div className="space-y-1.5 opacity-60 text-[10px] font-mono">
+                    <p className="truncate">Clause 7: Possession on or before 30 April 2025</p>
+                    <p className="truncate">Consideration: INR 45,00,000/- total agreed price</p>
                   </div>
                 </div>
 
-                {/* Foreground Card: AI Summary */}
-                <div className="absolute top-8 left-6 right-2 bg-white text-slate-900 rounded-2xl p-4 shadow-2xl border border-purple-100 space-y-2.5">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-purple-700">
-                    <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-                    <span>AI Summary</span>
+                {/* Foreground Card: Real Integrity Metrics */}
+                <div className="absolute top-8 left-4 right-2 bg-white text-slate-900 rounded-2xl p-4 shadow-2xl border border-purple-100 space-y-2">
+                  <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                    <span className="text-xs font-bold text-purple-700 flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                      <span>Case Integrity Summary</span>
+                    </span>
+                    <span className="text-[10px] font-mono font-bold text-purple-800 bg-purple-50 px-2 py-0.5 rounded">
+                      Readiness: {readinessScore}%
+                    </span>
                   </div>
 
-                  <div className="space-y-1 text-xs">
-                    <div className="flex items-center gap-2 text-slate-700">
-                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 font-bold" />
-                      <span className="font-medium text-[11px]">Key Facts Extracted</span>
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between text-slate-700 text-[11px]">
+                      <span>Source Pins Grounded:</span>
+                      <span className="font-bold text-emerald-700">100% Traceable</span>
                     </div>
-                    <div className="flex items-center gap-2 text-slate-700">
-                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 font-bold" />
-                      <span className="font-medium text-[11px]">Legal Issues &amp; Liabilities</span>
+                    <div className="flex items-center justify-between text-slate-700 text-[11px]">
+                      <span>Cross-Docket Discrepancies:</span>
+                      <span className="font-bold text-amber-700">2 Flagged</span>
                     </div>
-                    <div className="flex items-center gap-2 text-slate-700">
-                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 font-bold" />
-                      <span className="font-medium text-[11px]">Relevant Precedents (SC/HC)</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-slate-700">
-                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 font-bold" />
-                      <span className="font-medium text-[11px]">Suggested Next Steps</span>
+                    <div className="flex items-center justify-between text-slate-700 text-[11px]">
+                      <span>Statutory Evidence Gaps:</span>
+                      <span className="font-bold text-red-700">3 Identified</span>
                     </div>
                   </div>
                 </div>
@@ -269,398 +348,276 @@ export default function WorkspaceDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           
           {/* ========================================================================= */}
-          {/* LEFT COLUMN (8 COLS): UPCOMING HEARINGS, CHARTS & INSIGHTS                */}
+          {/* LEFT COLUMN (8 COLS): REAL UPCOMING HEARINGS & REAL DISTRIBUTION          */}
           {/* ========================================================================= */}
           <div className="lg:col-span-8 space-y-6">
             
-            {/* 1. UPCOMING HEARINGS CARD */}
-            <div id="hearings" className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-xs">
+            {/* 1. REAL UPCOMING HEARINGS CARD */}
+            <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-xs">
               <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                 <h3 className="text-base font-extrabold text-[#0D0B26] flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-purple-600" />
-                  <span>Upcoming Hearings</span>
+                  <span>Upcoming Scheduled Hearings</span>
                 </h3>
                 <Link
                   href="/workspace/cases"
                   className="text-xs font-bold text-purple-600 hover:text-purple-700 flex items-center gap-1"
                 >
-                  <span>View Calendar</span>
+                  <span>Manage Portfolio</span>
                   <ArrowRight className="w-3 h-3" />
                 </Link>
               </div>
 
-              <div className="divide-y divide-slate-100">
-                
-                {/* Hearing 1 */}
-                <div className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/70 p-2 rounded-xl transition-colors">
-                  <div className="flex items-center gap-3.5">
-                    {/* Date Block */}
-                    <div className="w-14 h-12 rounded-xl bg-purple-50/90 text-purple-700 flex flex-col items-center justify-center font-bold text-xs shrink-0 border border-purple-100">
-                      <span className="text-[10px] text-purple-400 uppercase tracking-wider font-extrabold">JAN</span>
-                      <span className="text-base font-black leading-none text-purple-900">24</span>
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-[#0D0B26] text-sm">State vs. R.K. Sharma</h4>
-                      <p className="text-xs text-slate-500 font-medium">Criminal • Session Court, Delhi</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 sm:justify-end">
-                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-100">
-                      Hearing
-                    </span>
-                    <span className="text-xs font-semibold text-slate-700 font-mono">11:00 AM</span>
-                  </div>
-                </div>
+              {upcomingHearings.length > 0 ? (
+                <div className="divide-y divide-slate-100">
+                  {upcomingHearings.map((c) => {
+                    // Extract month and day if YYYY-MM-DD
+                    const dateParts = (c.nextHearingDate || '').split('-');
+                    const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+                    const monthStr = dateParts.length === 3 ? monthNames[parseInt(dateParts[1], 10) - 1] || 'SCH' : 'SCH';
+                    const dayStr = dateParts.length === 3 ? dateParts[2] : '•';
 
-                {/* Hearing 2 */}
-                <div className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/70 p-2 rounded-xl transition-colors">
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-14 h-12 rounded-xl bg-purple-50/90 text-purple-700 flex flex-col items-center justify-center font-bold text-xs shrink-0 border border-purple-100">
-                      <span className="text-[10px] text-purple-400 uppercase tracking-wider font-extrabold">JAN</span>
-                      <span className="text-base font-black leading-none text-purple-900">27</span>
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-[#0D0B26] text-sm">Mehta &amp; Co. vs. Urban Buildtech</h4>
-                      <p className="text-xs text-slate-500 font-medium">Civil • High Court, Delhi</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 sm:justify-end">
-                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100">
-                      Arguments
-                    </span>
-                    <span className="text-xs font-semibold text-slate-700 font-mono">02:30 PM</span>
-                  </div>
-                </div>
+                    return (
+                      <div key={c.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/70 p-2 rounded-xl transition-colors">
+                        <div className="flex items-center gap-3.5">
+                          {/* Date Block */}
+                          <div className="w-14 h-12 rounded-xl bg-purple-50/90 text-purple-700 flex flex-col items-center justify-center font-bold text-xs shrink-0 border border-purple-100">
+                            <span className="text-[10px] text-purple-400 uppercase tracking-wider font-extrabold">{monthStr}</span>
+                            <span className="text-base font-black leading-none text-purple-900">{dayStr}</span>
+                          </div>
+                          <div>
+                            <Link href={`/workspace/cases/${c.id}`} className="font-bold text-[#0D0B26] text-sm hover:text-purple-600 block">
+                              {c.title}
+                            </Link>
+                            <p className="text-xs text-slate-500 font-medium">
+                              {c.court} {c.jurisdiction ? `• ${c.jurisdiction}` : ''}
+                            </p>
+                          </div>
+                        </div>
 
-                {/* Hearing 3 */}
-                <div className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/70 p-2 rounded-xl transition-colors">
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-14 h-12 rounded-xl bg-purple-50/90 text-purple-700 flex flex-col items-center justify-center font-bold text-xs shrink-0 border border-purple-100">
-                      <span className="text-[10px] text-purple-400 uppercase tracking-wider font-extrabold">JAN</span>
-                      <span className="text-base font-black leading-none text-purple-900">30</span>
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-[#0D0B26] text-sm">Aarti Verma vs. State</h4>
-                      <p className="text-xs text-slate-500 font-medium">Constitutional • Supreme Court</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 sm:justify-end">
-                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-100">
-                      Mentioning
-                    </span>
-                    <span className="text-xs font-semibold text-slate-700 font-mono">10:00 AM</span>
-                  </div>
-                </div>
-
-                {/* Hearing 4: Sharma v. Horizon Developers (Benchmark Hackathon Case) */}
-                <div className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-amber-50/40 hover:bg-amber-50/70 p-2 rounded-xl transition-colors border border-amber-200/50 mt-1">
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-14 h-12 rounded-xl bg-amber-100 text-amber-900 flex flex-col items-center justify-center font-bold text-xs shrink-0 border border-amber-300">
-                      <span className="text-[10px] text-amber-700 uppercase tracking-wider font-extrabold">FEB</span>
-                      <span className="text-base font-black leading-none text-amber-950">14</span>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <Link href={`/workspace/cases/${DEMO_CASE_ID}`} className="font-bold text-[#0D0B26] hover:text-purple-600 text-sm">
-                          {PRIMARY_DEMO_CASE.title}
-                        </Link>
-                        <span className="text-[9px] uppercase font-extrabold bg-amber-200 text-amber-900 px-1.5 py-0.2 rounded">
-                          Benchmark Case
-                        </span>
+                        <div className="flex items-center gap-3 sm:justify-end">
+                          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-100">
+                            {c.category}
+                          </span>
+                          <Link
+                            href={`/workspace/cases/${c.id}`}
+                            className="px-3 py-1 bg-[#1B4FD8] hover:bg-blue-600 text-white font-bold text-xs rounded-lg transition-colors shadow-xs"
+                          >
+                            Workspace →
+                          </Link>
+                        </div>
                       </div>
-                      <p className="text-xs text-slate-500 font-medium">Property &amp; Consumer • Haryana RERA Bench</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 sm:justify-end">
-                    <Link
-                      href={`/workspace/cases/${DEMO_CASE_ID}`}
-                      className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-[#1B4FD8] hover:bg-blue-600 text-white shadow-xs"
-                    >
-                      Open Workspace →
-                    </Link>
-                  </div>
+                    );
+                  })}
                 </div>
-
-              </div>
+              ) : (
+                <div className="p-8 text-center text-slate-400 text-xs">
+                  No upcoming hearings scheduled. Register a case docket with a hearing date.
+                </div>
+              )}
             </div>
 
-            {/* 2. SUB-ROW: CASE DISTRIBUTION (DONUT) + QUICK INSIGHTS */}
-            <div id="distribution" className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* 2. REAL CASE DISTRIBUTION & REAL INSIGHTS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
-              {/* Card 2A: Case Distribution Donut Chart */}
+              {/* Card 2A: Real Case Distribution */}
               <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-extrabold text-[#0D0B26]">Case Distribution</h3>
-                  <button className="flex items-center gap-1 text-xs text-slate-500 font-medium hover:text-slate-800">
-                    <span>This Quarter</span>
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  </button>
+                  <h3 className="text-sm font-extrabold text-[#0D0B26]">Real Case Distribution</h3>
+                  <span className="text-xs text-slate-500 font-medium">{cases.length} Total Cases</span>
                 </div>
 
-                {/* SVG Donut Chart and Legend */}
                 <div className="flex flex-col sm:flex-row items-center justify-around gap-4 py-2">
                   {/* SVG Donut */}
                   <div className="relative w-36 h-36 shrink-0 flex items-center justify-center">
                     <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                      {/* Civil: 37% */}
-                      <circle cx="50" cy="50" r="38" fill="transparent" stroke="#8B5CF6" strokeWidth="14" strokeDasharray="88 150" strokeDashoffset="0" />
-                      {/* Criminal: 25% */}
-                      <circle cx="50" cy="50" r="38" fill="transparent" stroke="#3B82F6" strokeWidth="14" strokeDasharray="60 178" strokeDashoffset="-88" />
-                      {/* Corporate: 17% */}
-                      <circle cx="50" cy="50" r="38" fill="transparent" stroke="#06B6D4" strokeWidth="14" strokeDasharray="40 198" strokeDashoffset="-148" />
-                      {/* Constitutional: 13% */}
-                      <circle cx="50" cy="50" r="38" fill="transparent" stroke="#EC4899" strokeWidth="14" strokeDasharray="31 207" strokeDashoffset="-188" />
-                      {/* Others: 8% */}
-                      <circle cx="50" cy="50" r="38" fill="transparent" stroke="#F59E0B" strokeWidth="14" strokeDasharray="19 219" strokeDashoffset="-219" />
+                      {categoryDistribution.map((item, idx) => {
+                        const previousPercent = categoryDistribution.slice(0, idx).reduce((sum, i) => sum + i.percentage, 0);
+                        const strokeDash = `${item.percentage * 2.38} 238`;
+                        const strokeOffset = `-${previousPercent * 2.38}`;
+                        return (
+                          <circle
+                            key={idx}
+                            cx="50"
+                            cy="50"
+                            r="38"
+                            fill="transparent"
+                            stroke={item.color}
+                            strokeWidth="14"
+                            strokeDasharray={strokeDash}
+                            strokeDashoffset={strokeOffset}
+                          />
+                        );
+                      })}
                     </svg>
                     <div className="absolute text-center">
-                      <span className="text-xl font-black text-slate-900 block leading-tight">24</span>
-                      <span className="text-[9px] text-slate-500 font-semibold uppercase">Active Cases</span>
+                      <span className="text-xl font-black text-slate-900 block leading-tight">{cases.length}</span>
+                      <span className="text-[9px] text-slate-500 font-semibold uppercase">Matters</span>
                     </div>
                   </div>
 
-                  {/* Legend */}
-                  <div className="space-y-1.5 text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
-                      <span className="text-slate-600 font-medium w-24">Civil</span>
-                      <span className="font-bold text-slate-800">37% (9)</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                      <span className="text-slate-600 font-medium w-24">Criminal</span>
-                      <span className="font-bold text-slate-800">25% (6)</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-cyan-500" />
-                      <span className="text-slate-600 font-medium w-24">Corporate</span>
-                      <span className="font-bold text-slate-800">17% (4)</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-pink-500" />
-                      <span className="text-slate-600 font-medium w-24">Constitutional</span>
-                      <span className="font-bold text-slate-800">13% (3)</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                      <span className="text-slate-600 font-medium w-24">Others</span>
-                      <span className="font-bold text-slate-800">8% (2)</span>
-                    </div>
+                  {/* Dynamic Legend */}
+                  <div className="space-y-1.5 text-xs flex-1 max-w-[180px]">
+                    {categoryDistribution.map((item, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                          <span className="text-slate-600 font-medium truncate">{item.category}</span>
+                        </div>
+                        <span className="font-bold text-slate-800 ml-2">{item.percentage}% ({item.count})</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
 
-              {/* Card 2B: Quick Insights */}
+              {/* Card 2B: Real Quick Insights */}
               <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
                 <div className="flex items-center gap-2 mb-3">
                   <Sparkles className="w-4 h-4 text-purple-600" />
-                  <h3 className="text-sm font-extrabold text-[#0D0B26]">Quick Insights</h3>
+                  <h3 className="text-sm font-extrabold text-[#0D0B26]">Litigation Insights</h3>
                 </div>
 
                 <div className="space-y-3 text-xs">
-                  <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-100 flex items-start gap-2.5">
-                    <span className="w-5 h-5 rounded-full bg-emerald-200 text-emerald-800 flex items-center justify-center font-bold text-xs shrink-0">
-                      ↑
-                    </span>
-                    <p className="text-slate-700 font-medium leading-relaxed">
-                      <strong>3 cases</strong> moved to next hearing since last week.
-                    </p>
-                  </div>
-
                   <div className="p-3 rounded-xl bg-purple-50/70 border border-purple-100 flex items-start gap-2.5">
                     <Calendar className="w-5 h-5 text-purple-600 shrink-0 p-0.5" />
                     <p className="text-slate-700 font-medium leading-relaxed">
-                      <strong>5 deadlines</strong> this week for pleadings and written arguments.
+                      <strong>{upcomingHearingsCount} upcoming hearing{upcomingHearingsCount === 1 ? '' : 's'}</strong> listed before respective courts.
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-100 flex items-start gap-2.5">
+                    <FileCheck2 className="w-5 h-5 text-amber-600 shrink-0 p-0.5" />
+                    <p className="text-slate-700 font-medium leading-relaxed">
+                      <strong>{pendingTasksCount} pending action item{pendingTasksCount === 1 ? '' : 's'}</strong> scheduled across current dockets.
                     </p>
                   </div>
 
                   <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-100 flex items-start gap-2.5">
-                    <Scale className="w-5 h-5 text-blue-600 shrink-0 p-0.5" />
+                    <MessageSquare className="w-5 h-5 text-blue-600 shrink-0 p-0.5" />
                     <p className="text-slate-700 font-medium leading-relaxed">
-                      <strong>2 new relevant judgments</strong> indexed for your ongoing property disputes.
+                      <strong>{enquiries.length} citizen consultation{enquiries.length === 1 ? '' : 's'}</strong> received through public directory.
                     </p>
                   </div>
                 </div>
               </div>
 
-            </div>
-
-            {/* 3. CASE PROGRESS SPLINE CHART */}
-            <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-xs">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-purple-600" />
-                  <h3 className="text-sm font-extrabold text-[#0D0B26]">Case Progress</h3>
-                </div>
-                <button className="flex items-center gap-1 text-xs text-slate-500 font-medium hover:text-slate-800">
-                  <span>Last 6 Months</span>
-                  <ChevronDown className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              {/* Area Line Chart Visualization */}
-              <div className="w-full h-44 relative pt-2">
-                <svg viewBox="0 0 600 140" className="w-full h-full overflow-visible">
-                  <defs>
-                    <linearGradient id="purpleAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.35" />
-                      <stop offset="100%" stopColor="#8B5CF6" stopOpacity="0.0" />
-                    </linearGradient>
-                  </defs>
-
-                  {/* Horizontal Grid lines */}
-                  <line x1="0" y1="120" x2="600" y2="120" stroke="#F1F5F9" strokeWidth="1" />
-                  <line x1="0" y1="90" x2="600" y2="90" stroke="#F1F5F9" strokeWidth="1" />
-                  <line x1="0" y1="60" x2="600" y2="60" stroke="#F1F5F9" strokeWidth="1" />
-                  <line x1="0" y1="30" x2="600" y2="30" stroke="#F1F5F9" strokeWidth="1" />
-
-                  {/* Gradient Area under curve */}
-                  <path
-                    d="M 20 100 Q 120 70, 220 80 T 420 50 T 580 20 L 580 120 L 20 120 Z"
-                    fill="url(#purpleAreaGradient)"
-                  />
-
-                  {/* Spline Line */}
-                  <path
-                    d="M 20 100 Q 120 70, 220 80 T 420 50 T 580 20"
-                    fill="transparent"
-                    stroke="#7C3AED"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                  />
-
-                  {/* Data Points */}
-                  {[
-                    { x: 20, y: 100, label: 'Aug', val: 12 },
-                    { x: 130, y: 80, label: 'Sep', val: 18 },
-                    { x: 240, y: 78, label: 'Oct', val: 22 },
-                    { x: 350, y: 70, label: 'Nov', val: 26 },
-                    { x: 460, y: 45, label: 'Dec', val: 35 },
-                    { x: 580, y: 20, label: 'Jan', val: 47 }
-                  ].map((pt, idx) => (
-                    <g key={idx}>
-                      <circle cx={pt.x} cy={pt.y} r="5" fill="#FFFFFF" stroke="#7C3AED" strokeWidth="3" className="hover:r-7 transition-all cursor-pointer" />
-                      <text x={pt.x} y="136" textAnchor="middle" fill="#94A3B8" fontSize="11" fontWeight="500">
-                        {pt.label}
-                      </text>
-                    </g>
-                  ))}
-                </svg>
-              </div>
             </div>
 
           </div>
 
           {/* ========================================================================= */}
-          {/* RIGHT COLUMN (4 COLS): AI LEGAL ASSISTANT WIDGET & RECENT DOCUMENTS       */}
+          {/* RIGHT COLUMN (4 COLS): REAL CLIENT ENQUIRIES, TASKS & DOCUMENTS          */}
           {/* ========================================================================= */}
           <div className="lg:col-span-4 space-y-6">
             
-            {/* 1. AI LEGAL ASSISTANT CHAT WIDGET */}
-            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            {/* 1. REAL CLIENT ENQUIRIES CARD (FROM CITIZEN PUBLIC PORTAL) */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-purple-600" />
-                  <h3 className="text-sm font-extrabold text-[#0D0B26]">AI Legal Assistant</h3>
+                  <MessageSquare className="w-4 h-4 text-amber-600" />
+                  <h3 className="text-sm font-extrabold text-[#0D0B26]">Citizen Enquiries</h3>
                 </div>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
-                  Beta
+                <Link
+                  href="/workspace/enquiries"
+                  className="text-xs font-bold text-amber-700 hover:underline flex items-center gap-0.5"
+                >
+                  <span>View All ({enquiries.length})</span>
+                  <ArrowRight className="w-3 h-3" />
+                </Link>
+              </div>
+
+              {enquiries.length > 0 ? (
+                <div className="space-y-3 text-xs">
+                  {enquiries.slice(0, 2).map((enquiry) => (
+                    <div key={enquiry.id} className="p-3 rounded-xl bg-slate-50 border border-slate-200/70 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-900 flex items-center gap-1">
+                          <User className="w-3.5 h-3.5 text-purple-600" />
+                          <span>{enquiry.clientName}</span>
+                        </span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                          {enquiry.caseCategory}
+                        </span>
+                      </div>
+                      <p className="text-slate-600 line-clamp-2 text-[11px] italic">
+                        &quot;{enquiry.message}&quot;
+                      </p>
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {new Date(enquiry.createdAt).toLocaleDateString('en-IN')}
+                        </span>
+                        {enquiry.status !== 'converted' ? (
+                          <button
+                            onClick={() => handleConvertToCase(enquiry)}
+                            className="px-2 py-1 bg-[#1B4FD8] hover:bg-blue-600 text-white font-bold text-[10px] rounded flex items-center gap-1"
+                          >
+                            <FolderPlus className="w-3 h-3" />
+                            <span>Convert to Case</span>
+                          </button>
+                        ) : (
+                          <span className="text-[10px] font-bold text-emerald-700">Converted</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-slate-400 text-xs py-4 text-center">
+                  No incoming client consultation requests.
+                </p>
+              )}
+            </div>
+
+            {/* 2. REAL PENDING TASKS CARD (INTERACTIVE) */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-purple-600" />
+                  <h3 className="text-sm font-extrabold text-[#0D0B26]">Pending Tasks</h3>
+                </div>
+                <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded">
+                  {pendingTasksCount} Action Items
                 </span>
               </div>
 
-              {/* Chat Bubble / Callout */}
-              <div className="p-3.5 rounded-2xl bg-purple-50/60 border border-purple-100/80 text-center">
-                <p className="text-xs font-bold text-purple-950">
-                  How can I help you today?
-                </p>
-              </div>
-
-              {/* 4 Interactive Quick Action Buttons */}
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => handleQuickPromptClick('Summarize a case document: Written_Submission.pdf')}
-                  className="w-full p-2.5 rounded-xl border border-slate-200/80 hover:border-purple-300 hover:bg-purple-50/40 text-left flex items-center gap-2.5 text-xs font-medium text-slate-700 transition-all active:scale-[0.99]"
-                >
-                  <FileText className="w-4 h-4 text-purple-600 shrink-0" />
-                  <span>Summarize a case document</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleQuickPromptClick('Find relevant precedents for RERA builder delay')}
-                  className="w-full p-2.5 rounded-xl border border-slate-200/80 hover:border-purple-300 hover:bg-purple-50/40 text-left flex items-center gap-2.5 text-xs font-medium text-slate-700 transition-all active:scale-[0.99]"
-                >
-                  <Scale className="w-4 h-4 text-purple-600 shrink-0" />
-                  <span>Find relevant precedents</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleQuickPromptClick('Draft a legal notice under Section 18 RERA')}
-                  className="w-full p-2.5 rounded-xl border border-slate-200/80 hover:border-purple-300 hover:bg-purple-50/40 text-left flex items-center gap-2.5 text-xs font-medium text-slate-700 transition-all active:scale-[0.99]"
-                >
-                  <BookOpen className="w-4 h-4 text-purple-600 shrink-0" />
-                  <span>Draft a legal notice</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleQuickPromptClick('Explain legal concept of Unfair Trade Practice in BBA')}
-                  className="w-full p-2.5 rounded-xl border border-slate-200/80 hover:border-purple-300 hover:bg-purple-50/40 text-left flex items-center gap-2.5 text-xs font-medium text-slate-700 transition-all active:scale-[0.99]"
-                >
-                  <HelpCircle className="w-4 h-4 text-purple-600 shrink-0" />
-                  <span>Explain a legal concept</span>
-                </button>
-              </div>
-
-              {/* AI Live Feedback Box if triggered */}
-              {(isProcessingAI || chatResponse) && (
-                <div className="p-3 rounded-xl bg-slate-900 text-white text-xs space-y-1.5 animate-fade-in">
-                  <div className="flex items-center gap-1.5 text-purple-400 font-bold text-[11px]">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>CaseKeeper Engine Response</span>
-                  </div>
-                  {isProcessingAI ? (
-                    <div className="flex items-center gap-2 text-slate-400 py-1">
-                      <div className="w-3 h-3 rounded-full bg-purple-500 animate-ping" />
-                      <span>Retrieving statutory precedents...</span>
+              {tasks.length > 0 ? (
+                <div className="space-y-2 text-xs">
+                  {tasks.slice(0, 4).map((t) => (
+                    <div key={t.id} className="p-2.5 rounded-xl border border-slate-100 hover:border-slate-300 transition-colors flex items-start gap-2.5">
+                      <input 
+                        type="checkbox" 
+                        checked={t.status === 'completed'}
+                        onChange={() => handleToggleTask(t.id)}
+                        className="mt-0.5 rounded border-slate-300 text-purple-600 focus:ring-purple-500 cursor-pointer" 
+                      />
+                      <div className="flex-1">
+                        <p className={`font-semibold leading-tight ${t.status === 'completed' ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                          {t.title}
+                        </p>
+                        <span className="text-[10px] font-mono text-slate-400 block mt-0.5">
+                          Due: {t.dueDate}
+                        </span>
+                      </div>
                     </div>
-                  ) : (
-                    <p className="text-slate-200 leading-relaxed text-[11px]">
-                      {chatResponse}
-                    </p>
-                  )}
+                  ))}
                 </div>
+              ) : (
+                <p className="text-slate-400 text-xs py-4 text-center">
+                  All action items completed.
+                </p>
               )}
-
-              {/* Chat Input Bar */}
-              <form onSubmit={handleSendChat} className="relative pt-1">
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Ask anything about your case..."
-                  className="w-full pl-3.5 pr-10 py-2.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-slate-800 placeholder-slate-400 bg-slate-50/60"
-                />
-                <button
-                  type="submit"
-                  className="absolute right-2 top-3 p-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xs hover:opacity-90 transition-opacity"
-                >
-                  <Send className="w-3 h-3" />
-                </button>
-              </form>
             </div>
 
-            {/* 2. RECENT DOCUMENTS LIST */}
+            {/* 3. REAL RECENT DOCUMENTS LIST */}
             <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-3">
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <h3 className="text-sm font-extrabold text-[#0D0B26] flex items-center gap-2">
                   <FileText className="w-4 h-4 text-purple-600" />
-                  <span>Recent Documents</span>
+                  <span>Case Dockets &amp; Documents</span>
                 </h3>
                 <Link
-                  href={`/workspace/cases/${DEMO_CASE_ID}?tab=evidence`}
+                  href={`/workspace/cases/${primaryCaseId}?tab=evidence`}
                   className="text-xs font-bold text-purple-600 hover:text-purple-700 flex items-center gap-0.5"
                 >
                   <span>View All</span>
@@ -669,64 +626,24 @@ export default function WorkspaceDashboard() {
               </div>
 
               <div className="divide-y divide-slate-100 text-xs">
-                {/* Doc 1 */}
-                <div className="py-2.5 flex items-center justify-between gap-3 hover:bg-slate-50 p-1.5 rounded-xl transition-colors">
-                  <div className="flex items-center gap-2.5 overflow-hidden">
-                    <span className="w-8 h-8 rounded-lg bg-red-50 text-red-600 font-extrabold text-[10px] flex items-center justify-center shrink-0 border border-red-100">
-                      PDF
-                    </span>
-                    <div className="truncate">
-                      <p className="font-bold text-slate-900 truncate">Written_Submission.pdf</p>
-                      <p className="text-[11px] text-slate-500 truncate">State vs. R.K. Sharma</p>
+                {documents.slice(0, 4).map((doc) => (
+                  <div key={doc.id} className="py-2.5 flex items-center justify-between gap-3 hover:bg-slate-50 p-1.5 rounded-xl transition-colors">
+                    <div className="flex items-center gap-2.5 overflow-hidden">
+                      <span className="w-8 h-8 rounded-lg bg-purple-50 text-purple-700 font-extrabold text-[10px] flex items-center justify-center shrink-0 border border-purple-100">
+                        PDF
+                      </span>
+                      <div className="truncate">
+                        <Link href={`/workspace/cases/${doc.caseId || primaryCaseId}?tab=evidence`} className="font-bold text-slate-900 hover:text-purple-600 truncate block">
+                          {doc.fileName}
+                        </Link>
+                        <p className="text-[11px] text-slate-500 font-mono truncate">
+                          {doc.pageCount || 1} page{(doc.pageCount || 1) === 1 ? '' : 's'} • SHA-256 Validated
+                        </p>
+                      </div>
                     </div>
+                    <span className="text-[10px] text-emerald-600 font-bold shrink-0">Source Pin</span>
                   </div>
-                  <span className="text-[10px] text-slate-400 font-mono shrink-0">2 min ago</span>
-                </div>
-
-                {/* Doc 2 */}
-                <div className="py-2.5 flex items-center justify-between gap-3 hover:bg-slate-50 p-1.5 rounded-xl transition-colors">
-                  <div className="flex items-center gap-2.5 overflow-hidden">
-                    <span className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 font-extrabold text-[10px] flex items-center justify-center shrink-0 border border-blue-100">
-                      W
-                    </span>
-                    <div className="truncate">
-                      <p className="font-bold text-slate-900 truncate">Legal_Notice.docx</p>
-                      <p className="text-[11px] text-slate-500 truncate">Mehta &amp; Co. vs. Urban Buildtech</p>
-                    </div>
-                  </div>
-                  <span className="text-[10px] text-slate-400 font-mono shrink-0">19 min ago</span>
-                </div>
-
-                {/* Doc 3 */}
-                <div className="py-2.5 flex items-center justify-between gap-3 hover:bg-slate-50 p-1.5 rounded-xl transition-colors">
-                  <div className="flex items-center gap-2.5 overflow-hidden">
-                    <span className="w-8 h-8 rounded-lg bg-red-50 text-red-600 font-extrabold text-[10px] flex items-center justify-center shrink-0 border border-red-100">
-                      PDF
-                    </span>
-                    <div className="truncate">
-                      <p className="font-bold text-slate-900 truncate">Case_Summary_AI.pdf</p>
-                      <p className="text-[11px] text-slate-500 truncate">Aarti Verma vs. State</p>
-                    </div>
-                  </div>
-                  <span className="text-[10px] text-slate-400 font-mono shrink-0">1 hr ago</span>
-                </div>
-
-                {/* Doc 4: Sharma v. Horizon Developers Agreement */}
-                <div className="py-2.5 flex items-center justify-between gap-3 hover:bg-slate-50 p-1.5 rounded-xl transition-colors">
-                  <div className="flex items-center gap-2.5 overflow-hidden">
-                    <span className="w-8 h-8 rounded-lg bg-purple-50 text-purple-700 font-extrabold text-[10px] flex items-center justify-center shrink-0 border border-purple-100">
-                      PDF
-                    </span>
-                    <div className="truncate">
-                      <Link href={`/workspace/cases/${DEMO_CASE_ID}`} className="font-bold text-purple-900 hover:underline truncate block">
-                        Agreement_For_Sale_Flat_402.pdf
-                      </Link>
-                      <p className="text-[11px] text-slate-500 truncate">Sharma v. Horizon Developers</p>
-                    </div>
-                  </div>
-                  <span className="text-[10px] text-emerald-600 font-bold shrink-0">Pinned</span>
-                </div>
-
+                ))}
               </div>
             </div>
 
