@@ -9,7 +9,7 @@ function buildSystemPrompt(language: string) {
 Target Language: ${isHindi ? 'HINDI (हिंदी) — Provide your entire response in clear, formal, and polite Hindi using Devanagari script.' : 'ENGLISH — Provide your entire response in clear, formal, and structured English.'}
 
 Key Domains of Knowledge:
-1. **Consumer Protection (उपभोक्ता संरक्षण)** — Consumer Protection Act, 2019 (Sections 35, 38): e-Daakhil filing, District/State/National Commissions, 2-year limitation period.
+1. **Consumer Protection (उपभोक्ता संरक्षण)** — Consumer Protection Act, 2019 (Sections 35, 38): e-Jagriti & e-Daakhil filing, District/State/National Commissions, 2-year limitation period.
 2. **Crop Insurance (PMFBY / फसल बीमा)** — Pradhan Mantri Fasal Bima Yojana: Mandatory 72-hour reporting rule for localized crop loss to bank or portal, claim process, grievance escalation.
 3. **Cooperative Societies (सहकारी समितियां)** — Multi-State Cooperative Societies Act & state acts: bye-law disputes, illegal maintenance charges, Registrar bench remedies.
 4. **Free Legal Aid (मुफ्त कानूनी सहायता - NALSA)** — Legal Services Authorities Act, 1987 (Section 12): eligibility (income <= 1 lakh, women, children, SC/ST, custody, industrial workers), DLSA/SLSA help.
@@ -50,7 +50,7 @@ const ENGLISH_FALLBACK = `Thank you for reaching out to CaseKeeper Legal Assista
 Here is a summary of key Indian statutory rights relevant to your enquiry:
 
 1. **Consumer Protection (Consumer Protection Act, 2019):**
-   - File complaints online via the e-Daakhil portal (edaakhil.nic.in) or at the District Commission.
+   - File complaints online via the e-Jagriti & e-Daakhil portals (edaakhil.nic.in) or at the District Commission.
    - No mandatory advocate representation required for claims up to ₹50 Lakhs.
    - Limitation period: 2 years from cause of action (Section 69).
 

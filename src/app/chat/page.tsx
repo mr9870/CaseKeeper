@@ -38,7 +38,7 @@ const INITIAL_MESSAGES: Message[] = [
     role: 'assistant',
     content: `Namaste! I am your CaseKeeper Legal Assistant. 
 
-I can help clarify statutory procedures in India, government schemes (such as PMFBY, Tele-Law, e-Daakhil), cooperative society by-laws, and explain how to engage a legal aid or private advocate.
+I can help clarify statutory procedures in India, government schemes (such as PMFBY, Tele-Law, e-Jagriti & e-Daakhil), cooperative society by-laws, and explain how to engage a legal aid or private advocate.
 
 You can ask me questions in **English** or **हिंदी**, or use the microphone button below to record your voice.`,
     timestamp: 'Just now',
@@ -70,7 +70,7 @@ You can ask me questions in **English** or **हिंदी**, or use the micro
 5. **Affidavit / Verification Form:** Formal statement signed by complainant confirming the facts stated in the petition are true.
 
 **Next Procedural Steps:**
-You can file this directly online on the **e-Daakhil** portal (no advocate mandatory for District Commission claims up to Rs. 50 Lakhs) or visit your District Consumer Commission.`,
+You can file this directly online on the **e-Jagriti / e-Daakhil** portal (no advocate mandatory for District Commission claims up to Rs. 50 Lakhs) or visit your District Consumer Commission.`,
     timestamp: '1 min ago',
     sources: [
       {
@@ -80,7 +80,7 @@ You can file this directly online on the **e-Daakhil** portal (no advocate manda
         citation: 'Section 35 (Manner in which complaint shall be made)'
       },
       {
-        title: 'National Consumer Helpline & e-Daakhil Rules',
+        title: 'National Consumer Helpline & e-Jagriti / e-Daakhil Rules',
         authority: 'National Consumer Disputes Redressal Commission',
         url: 'https://edaakhil.nic.in',
         citation: 'Practice Direction 2020 on Electronic Pleadings'
@@ -186,8 +186,8 @@ export default function ChatbotPage() {
     setTimeout(() => {
       setIsRecording(false);
       const recognized = language === 'HI'
-        ? 'उपभोक्ता फोरम (ई-दाखिल) में ऑनलाइन शिकायत दर्ज करने की प्रक्रिया क्या है?'
-        : 'What is the procedure to file a complaint on e-Daakhil consumer portal?';
+        ? 'उपभोक्ता फोरम (ई-जागृति / ई-दाखिल) में ऑनलाइन शिकायत दर्ज करने की प्रक्रिया क्या है?'
+        : 'What is the procedure to file a complaint on e-Jagriti / e-Daakhil consumer portal?';
       setInput(recognized);
     }, 2000);
   };

@@ -119,24 +119,24 @@ export const DEMO_RESOURCES: OfficialResource[] = [
   },
   {
     id: 'res-2',
-    title: 'Tele-Law: Pre-Litigation Legal Advisory',
+    title: 'Tele-Law: Pre-Litigation Legal Advisory & NALSA 15100',
     authority: 'Department of Justice & NALSA',
     category: 'Legal Aid',
-    description: 'Connects marginalized citizens to panel advocates at District Legal Services Authorities via 400,000+ Common Service Centres (CSCs) for free legal consultations.',
+    description: 'Connects marginalized citizens to panel advocates at District Legal Services Authorities via 400,000+ Common Service Centres (CSCs) and National Legal Aid Helpline 15100.',
     url: 'https://tele-law.in',
-    jurisdiction: 'All India',
-    lastReviewed: '02 Nov 2024',
+    jurisdiction: 'All India (Toll-Free: 15100)',
+    lastReviewed: '15 Jan 2026',
     type: 'Government Scheme'
   },
   {
     id: 'res-3',
-    title: 'e-Daakhil Consumer Grievance Portal',
-    authority: 'National Consumer Disputes Redressal Commission (NCDRC)',
+    title: 'e-Jagriti & e-Daakhil Consumer Portals',
+    authority: 'Department of Consumer Affairs & NCDRC',
     category: 'Consumer Complaints',
-    description: 'E-filing platform enabling digital consumer complaint submissions, payment of statutory fees, and virtual hearing tracking without physical registry presence.',
+    description: 'Comprehensive e-filing ecosystem (e-Jagriti integrated with e-Daakhil) enabling digital consumer dispute submissions, fee payment, grievance tracking, and video conference hearings under Consumer Protection Act 2019.',
     url: 'https://edaakhil.nic.in',
     jurisdiction: 'District, State & National Commissions',
-    lastReviewed: '28 Oct 2024',
+    lastReviewed: '20 Jan 2026',
     type: 'Filing Portal'
   },
   {
@@ -144,10 +144,10 @@ export const DEMO_RESOURCES: OfficialResource[] = [
     title: 'Pradhan Mantri Fasal Bima Yojana (PMFBY)',
     authority: 'Ministry of Agriculture & Farmers Welfare',
     category: 'Agricultural Support',
-    description: 'Comprehensive crop insurance coverage against non-preventable natural risks, drought, localized calamities, and post-harvest losses. Official claims portal.',
+    description: 'Comprehensive crop insurance coverage. Note: Localized post-harvest or calamity loss must be intimated within 72 hours via the Crop Insurance App or toll-free helpline 14447.',
     url: 'https://pmfby.gov.in',
-    jurisdiction: 'All States (Agri)',
-    lastReviewed: '20 Oct 2024',
+    jurisdiction: 'All States (Agri Help: 14447)',
+    lastReviewed: '20 Jan 2026',
     type: 'Direct Benefit / Insurance'
   },
   {
@@ -163,13 +163,13 @@ export const DEMO_RESOURCES: OfficialResource[] = [
   },
   {
     id: 'res-6',
-    title: 'NALSA Free Legal Services Portal',
+    title: 'NALSA Free Legal Services Portal & Helpline 15100',
     authority: 'National Legal Services Authority',
     category: 'Legal Aid',
-    description: 'Statutory legal aid under Section 12 of Legal Services Authorities Act 1987 for women, SC/ST, industrial workmen, persons in custody, and low-income citizens.',
+    description: 'Statutory free legal aid under Section 12 of Legal Services Authorities Act 1987 for women, SC/ST, children, industrial workers, and eligible citizens. Dial National Legal Aid Helpline 15100.',
     url: 'https://nalsa.gov.in',
-    jurisdiction: 'National / State DLSAs',
-    lastReviewed: '12 Nov 2024',
+    jurisdiction: 'National Helpline: 15100',
+    lastReviewed: '15 Jan 2026',
     type: 'Statutory Body'
   }
 ];
