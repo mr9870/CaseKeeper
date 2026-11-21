@@ -66,7 +66,7 @@ INDIAN_ACTS_PATTERNS = [
     r'(?:Specific\s+Relief\s+Act)(?:\s*,?\s*1963)?',
 ]
 
-SECTION_PATTERN = r'\b(?:Section|Sec\.|u/s|U/s|under\s+section)\s+(\d+(?:\s*\([0-9a-zA-Z]+\))*)\b'
+SECTION_PATTERN = r'\b(?:Section|Sec\.|u/s|U/s|s\.|ss\.|under\s+section)\s*(\d+(?:\s*\([0-9a-zA-Z]+\))*)\b'
 MONEY_PATTERN = r'(?:(?:Rs\.?|INR|₹)\s*[\d,]+(?:\.\d{2})?(?:\s*(?:/-|only|Lakhs?|Crores?|Cr|Lacs?))?|\b\d+\s*(?:Lakhs?|Crores?|Cr|Lacs?)\b)'
 
 
