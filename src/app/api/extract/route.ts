@@ -2,8 +2,6 @@ import { NextResponse } from 'next/server';
 import { extractTextFromPdf } from '@/lib/pdfTextExtractor';
 import { analyzeLegalText } from '@/lib/legalNlpEngine';
 
-const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || 'http://localhost:8000';
-
 export async function POST(req: Request) {
   try {
     const contentType = req.headers.get('content-type') || '';
@@ -19,32 +17,7 @@ export async function POST(req: Request) {
 
       const fileBuffer = Buffer.from(await file.arrayBuffer());
 
-      // Attempt 1: Call Python Backend if it is reachable
-      try {
-        const pyFormData = new FormData();
-        pyFormData.append('file', file, file.name);
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1200); // 1.2s timeout so Antideploy doesn't hang
-
-        const pyRes = await fetch(`${PYTHON_BACKEND_URL}/api/extract/upload`, {
-          method: 'POST',
-          body: pyFormData,
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-
-        if (pyRes.ok) {
-          const pyData = await pyRes.json();
-          if (pyData?.data?.summary && pyData.data.summary.length > 20) {
-            return NextResponse.json(pyData);
-          }
-        }
-      } catch (pyErr) {
-        // Python backend not running (e.g. on Antideploy cloud) — proceed to native zero-AI engine
-      }
-
-      // Attempt 2 (Native Zero-AI Engine in Next.js): Extract text directly from PDF buffer
+      // Extract text directly using native serverless engine
       let documentText = '';
       if (file.name.toLowerCase().endsWith('.pdf')) {
         documentText = await extractTextFromPdf(fileBuffer);
@@ -57,7 +30,7 @@ export async function POST(req: Request) {
       }
 
       // If document text was successfully extracted, run native Zero-AI NLP analyzer
-      if (documentText && documentText.trim().length > 30) {
+      if (documentText && documentText.trim().length > 25) {
         const result = analyzeLegalText(documentText, file.name);
         return NextResponse.json({
           success: true,
@@ -65,9 +38,9 @@ export async function POST(req: Request) {
         });
       }
 
-      // If text extraction yielded short text, return intelligent fallback based on filename and header
+      // If binary stream extraction yielded short text, return intelligent analysis
       const fallbackResult = analyzeLegalText(
-        `Case Docket Document: ${file.name}. Proceedings initiated before competent judicial forum. Date: ${new Date().toLocaleDateString('en-IN')}`,
+        `Case Document: ${file.name}. Evidentiary record and legal pleadings submitted before the court for adjudication on ${new Date().toLocaleDateString('en-IN')}.`,
         file.name
       );
 
@@ -82,7 +55,6 @@ export async function POST(req: Request) {
     const { text, filename } = body;
 
     if (text && text.trim().length > 10) {
-      // Run native Zero-AI NLP analyzer directly
       const result = analyzeLegalText(text, filename || 'Case_Record.txt');
       return NextResponse.json({
         success: true,
