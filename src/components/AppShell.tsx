@@ -2,28 +2,34 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
   LayoutDashboard, 
   Briefcase, 
   FileText, 
-  FileStack, 
-  ArrowLeftRight, 
-  User, 
-  LogOut, 
+  Sparkles, 
+  Search, 
+  Calendar, 
+  Users, 
+  BarChart3, 
+  Plus, 
+  Upload, 
   Scale, 
   Bell, 
-  Search, 
-  ChevronRight,
-  ShieldCheck,
-  Lock,
+  Crown, 
+  ChevronDown, 
+  LogOut, 
+  User, 
+  ShieldCheck, 
+  Lock, 
   ArrowRight,
-  MessageSquare
+  MessageSquare,
+  FileSearch,
+  ExternalLink
 } from 'lucide-react';
 import { getAuthUser, clearAuth, AuthUser } from '@/lib/authStore';
 import { getStoredCases } from '@/lib/caseStore';
-import { getStoredEnquiries } from '@/lib/enquiryStore';
+import { DEMO_CASE_ID } from '@/lib/demoCaseData';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -36,6 +42,8 @@ export function AppShell({ children, activeNav = 'dashboard', breadcrumb = 'Dash
   const router = useRouter();
   const [authUser, setAuthUserLocal] = useState<AuthUser | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -57,61 +65,35 @@ export function AppShell({ children, activeNav = 'dashboard', breadcrumb = 'Dash
     router.push('/');
   };
 
-  // Derive initials for avatar
-  const initials = authUser?.name
-    ? authUser.name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
-    : 'RV';
-  const displayName = authUser?.name ?? 'Adv. Rajesh Verma';
-  const displaySub = authUser?.barNumber ? `Bar: ${authUser.barNumber}` : (authUser?.email ?? 'Senior Counsel');
-
-  const cases = mounted ? getStoredCases() : [];
-  const primaryCaseId = cases.length > 0 ? cases[0].id : null;
-  const pendingEnquiriesCount = mounted 
-    ? getStoredEnquiries(authUser?.id, authUser?.email).filter(e => e.status === 'pending').length 
-    : 0;
+  const displayName = authUser?.name ?? 'Adv. Arjun Mehta';
+  const displayRole = authUser?.barNumber ? `Bar: ${authUser.barNumber}` : 'Senior Advocate';
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', href: '/workspace/dashboard', icon: LayoutDashboard },
-    { 
-      id: 'enquiries', 
-      label: 'Client Enquiries', 
-      href: '/workspace/enquiries', 
-      icon: MessageSquare,
-      badge: pendingEnquiriesCount > 0 ? pendingEnquiriesCount : undefined 
-    },
-    { id: 'cases', label: 'Active Cases', href: '/workspace/cases', icon: Briefcase },
-    { 
-      id: 'documents', 
-      label: 'Case Documents', 
-      href: primaryCaseId ? `/workspace/cases/${primaryCaseId}/documents` : '/workspace/cases', 
-      icon: FileText 
-    },
-    { 
-      id: 'briefs', 
-      label: 'Brief Viewer', 
-      href: primaryCaseId ? `/workspace/cases/${primaryCaseId}/briefs` : '/workspace/cases', 
-      icon: FileStack 
-    },
-    { id: 'handoffs', label: 'Handoffs & Transfers', href: '/workspace/handoffs', icon: ArrowLeftRight },
-    { id: 'profile', label: 'Advocate Profile', href: '/workspace/profile', icon: User },
+    { id: 'cases', label: 'Cases', href: '/workspace/cases', icon: Briefcase },
+    { id: 'documents', label: 'Documents', href: `/workspace/cases/${DEMO_CASE_ID}?tab=evidence`, icon: FileText },
+    { id: 'assistant', label: 'AI Legal Assistant', href: `/workspace/cases/${DEMO_CASE_ID}`, icon: Sparkles },
+    { id: 'research', label: 'Research', href: '/resources', icon: Search },
+    { id: 'calendar', label: 'Calendar & Deadlines', href: '/workspace/dashboard#hearings', icon: Calendar },
+    { id: 'team', label: 'Team', href: '/workspace/handoffs', icon: Users },
+    { id: 'analytics', label: 'Analytics', href: '/workspace/dashboard#distribution', icon: BarChart3 },
   ];
 
-  // Access Control Guard: Only authenticated lawyers can enter the Advocate Workspace
+  // Access Control Guard
   if (mounted && (!authUser || authUser.role !== 'lawyer')) {
     const isPublicUser = authUser?.role === 'public';
     return (
-      <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col justify-center items-center p-6 relative overflow-hidden">
-        {/* Animated backdrop glow */}
-        <div className="absolute top-1/4 -left-20 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none animate-pulse-glow" />
-        <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none animate-pulse-glow" style={{ animationDelay: '1.5s' }} />
+      <div className="min-h-screen bg-[#0E0C28] text-slate-100 flex flex-col justify-center items-center p-6 relative overflow-hidden">
+        <div className="absolute top-1/4 -left-20 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="max-w-md w-full bg-slate-800/90 backdrop-blur-xl border border-slate-700/80 rounded-2xl p-8 shadow-2xl relative z-10 text-center animate-scale-in">
-          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 mx-auto flex items-center justify-center mb-5 animate-float">
+        <div className="max-w-md w-full bg-[#1A163B]/90 backdrop-blur-xl border border-purple-500/30 rounded-2xl p-8 shadow-2xl relative z-10 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/30 text-purple-400 mx-auto flex items-center justify-center mb-5">
             <Lock className="w-8 h-8" />
           </div>
 
-          <span className="inline-block px-3 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-bold rounded-full uppercase tracking-wider mb-3">
-            Advocate Portal Restricted
+          <span className="inline-block px-3 py-1 bg-purple-500/10 border border-purple-500/30 text-purple-300 text-xs font-bold rounded-full uppercase tracking-wider mb-3">
+            Advocate Portal
           </span>
 
           <h2 className="text-2xl font-bold text-white mb-2">
@@ -121,11 +103,11 @@ export function AppShell({ children, activeNav = 'dashboard', breadcrumb = 'Dash
           <p className="text-slate-300 text-sm mb-6 leading-relaxed">
             {isPublicUser ? (
               <>
-                You are currently signed in as a <strong>Citizen account ({authUser?.name})</strong>. This workspace is reserved exclusively for registered Advocates and Legal Practitioners.
+                You are currently signed in as a citizen. This workspace is reserved for registered advocates and legal counsel.
               </>
             ) : (
               <>
-                Sign in or register with a Bar Council verified advocate account to access the Advocate Workspace.
+                Sign in or register with an Advocate account to access the CaseKeeper Advocate Command Center.
               </>
             )}
           </p>
@@ -133,7 +115,7 @@ export function AppShell({ children, activeNav = 'dashboard', breadcrumb = 'Dash
           <div className="space-y-3">
             <Link
               href="/login?role=lawyer"
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold rounded-xl text-sm shadow-lg shadow-blue-600/30 btn-interactive"
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] hover:opacity-95 text-white font-semibold rounded-xl text-sm shadow-lg shadow-purple-600/30"
             >
               <ShieldCheck className="w-4 h-4" />
               <span>Advocate Sign In / Register</span>
@@ -142,7 +124,7 @@ export function AppShell({ children, activeNav = 'dashboard', breadcrumb = 'Dash
 
             <Link
               href="/"
-              className="block w-full text-center py-2 text-xs text-slate-400 hover:text-slate-200 transition pt-2"
+              className="block w-full text-center py-2 text-xs text-slate-400 hover:text-slate-200 transition"
             >
               &larr; Return to CaseKeeper Public Portal
             </Link>
@@ -153,121 +135,207 @@ export function AppShell({ children, activeNav = 'dashboard', breadcrumb = 'Dash
   }
 
   return (
-    <div className="min-h-screen flex bg-[#F8FAFC]">
-      {/* Persistent Dark Navy Sidebar (Width 250px) */}
-      <aside className="w-64 bg-[#0F172A] text-white flex flex-col justify-between shrink-0 border-r border-slate-800 shadow-xl hidden md:flex fixed h-full z-30">
-        <div>
-          {/* Brand Header */}
-          <div className="h-16 px-6 flex items-center justify-between border-b border-slate-800">
-            <Link href="/" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center bg-white p-0.5 shadow-md">
-                <Image 
-                  src="/logo.png" 
-                  alt="CaseKeeper Logo" 
-                  width={30} 
-                  height={30} 
-                  className="object-contain w-full h-full"
-                />
+    <div className="min-h-screen flex bg-[#F8FAFD] font-sans text-slate-900">
+      {/* ========================================================================= */}
+      {/* SIDEBAR: EXACT MIDNIGHT-PURPLE THEME FROM REFERENCE IMAGE                */}
+      {/* ========================================================================= */}
+      <aside className="w-64 bg-[#0D0B26] text-white flex flex-col justify-between shrink-0 border-r border-[#1D1945] shadow-2xl hidden md:flex fixed h-full z-30">
+        <div className="overflow-y-auto">
+          {/* Logo & Subtitle */}
+          <div className="px-5 py-6">
+            <Link href="/workspace/dashboard" className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#6366F1] to-[#8B5CF6] flex items-center justify-center shadow-lg shadow-purple-600/30 text-white">
+                <Scale className="w-5 h-5" />
               </div>
               <div>
-                <span className="font-extrabold text-base tracking-tight text-white">CaseKeeper</span>
-                <span className="block text-[10px] text-blue-400 font-semibold uppercase tracking-wider">Advocate Portal</span>
+                <span className="font-extrabold text-lg tracking-tight text-white block leading-tight">
+                  CaseKeeper
+                </span>
+                <span className="text-[10px] text-purple-300 font-medium tracking-wide">
+                  AI-Powered Case Management
+                </span>
               </div>
             </Link>
           </div>
 
           {/* Navigation Links */}
-          <nav className="p-4 space-y-1.5 text-xs">
-            <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              Legal Workspace
-            </div>
-
+          <nav className="px-3.5 space-y-1 text-xs">
             {navItems.map((item) => {
               const IconComp = item.icon;
-              const isActive = pathname.startsWith(item.href) || activeNav === item.id;
+              const isActive = activeNav === item.id || (item.id === 'dashboard' && pathname === '/workspace/dashboard');
+
               return (
                 <Link
                   key={item.id}
                   href={item.href}
-                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-lg font-medium transition-all ${
+                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium transition-all ${
                     isActive
-                      ? 'bg-[#1B4FD8] text-white shadow-md'
-                      : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                      ? 'bg-gradient-to-r from-[#5B46EB] to-[#7952F3] text-white shadow-md shadow-indigo-900/40 font-semibold'
+                      : 'text-slate-300 hover:bg-white/5 hover:text-white'
                   }`}
                 >
-                  <IconComp className="w-4 h-4 shrink-0" />
+                  <IconComp className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
                   <span className="flex-1">{item.label}</span>
-                  {item.badge !== undefined && item.badge > 0 && (
-                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-slate-900 leading-none">
-                      {item.badge}
-                    </span>
-                  )}
                 </Link>
               );
             })}
           </nav>
 
-          {/* Security Indicator */}
-          <div className="mx-4 mt-4 p-3 bg-slate-800/50 rounded-lg border border-slate-700/60 text-[11px] text-slate-400">
-            <div className="flex items-center gap-1.5 text-blue-400 font-semibold mb-1">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Private Storage Active</span>
+          {/* Quick Actions Section */}
+          <div className="px-4 mt-7 space-y-2">
+            <div className="text-[11px] font-semibold text-slate-400 tracking-wide uppercase px-1">
+              Quick Actions
             </div>
-            RLS-Enforced Supabase bucket. Case dockets are strictly compartmentalized.
+
+            {/* + New Case Button */}
+            <Link
+              href="/workspace/cases/new"
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] hover:opacity-95 text-white font-bold text-xs shadow-md shadow-purple-900/30 transition-transform active:scale-[0.98]"
+            >
+              <Plus className="w-4 h-4" />
+              <span>New Case</span>
+            </Link>
+
+            {/* Upload Documents */}
+            <Link
+              href={`/workspace/cases/${DEMO_CASE_ID}?tab=evidence`}
+              className="w-full flex items-center gap-2.5 py-2 px-3 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 text-xs transition-colors"
+            >
+              <Upload className="w-4 h-4 text-slate-400" />
+              <span>Upload Documents</span>
+            </Link>
+
+            {/* Ask AI */}
+            <Link
+              href={`/workspace/cases/${DEMO_CASE_ID}`}
+              className="w-full flex items-center gap-2.5 py-2 px-3 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 text-xs transition-colors"
+            >
+              <Sparkles className="w-4 h-4 text-purple-400" />
+              <span>Ask AI</span>
+            </Link>
           </div>
         </div>
 
-        {/* Advocate Profile Strip at Bottom */}
-        <div className="p-4 border-t border-slate-800 bg-slate-900/60">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-inner">
-                {initials}
+        {/* Pro Plan Bottom Card */}
+        <div className="p-4">
+          <div className="bg-[#171438] border border-[#2B255C] rounded-2xl p-3.5 space-y-2 shadow-inner">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Crown className="w-4 h-4 text-amber-400 fill-amber-400" />
+                <span className="text-xs font-bold text-white">Pro Plan</span>
               </div>
-              <div className="overflow-hidden">
-                <p className="text-xs font-bold text-white truncate">{displayName}</p>
-                <p className="text-[10px] text-slate-400 truncate">{displaySub}</p>
-              </div>
+              <span className="text-[10px] text-purple-300 font-semibold bg-purple-950/80 px-2 py-0.5 rounded border border-purple-800/40">
+                Active
+              </span>
             </div>
-            <button
-              onClick={handleLogout}
-              title="Sign Out to Public Portal"
-              className="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-red-400 transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
+
+            <div className="flex justify-between items-center text-[11px] text-slate-400 font-medium">
+              <span>AI credits:</span>
+              <span className="text-slate-200 font-bold font-mono">847 / 1,000</span>
+            </div>
+
+            {/* Purple Progress Bar */}
+            <div className="w-full h-1.5 bg-[#251F4E] rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-purple-500 to-indigo-400 rounded-full w-[84.7%]" />
+            </div>
           </div>
         </div>
       </aside>
 
-      {/* Main Content Area */}
+      {/* ========================================================================= */}
+      {/* MAIN CONTAINER (TOP HEADER + PAGE CONTENT)                                */}
+      {/* ========================================================================= */}
       <div className="flex-1 flex flex-col md:pl-64 min-w-0">
-        {/* Top App Bar */}
-        <header className="h-16 bg-white border-b border-slate-200 sticky top-0 z-20 px-4 sm:px-6 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-            <Link href="/workspace/dashboard" className="hover:text-blue-600">Workspace</Link>
-            <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-            <span className="text-[#0F172A] font-bold">{breadcrumb}</span>
+        
+        {/* Top App Header: Exact Clean Search Bar + Notification + Profile Dropdown */}
+        <header className="h-18 bg-white border-b border-slate-200/80 sticky top-0 z-20 px-6 flex items-center justify-between gap-4">
+          
+          {/* Search Input Bar with ⌘K Badge */}
+          <div className="flex-1 max-w-xl relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search cases, documents, laws, judgments..."
+              className="w-full pl-10 pr-12 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-slate-800 placeholder-slate-400 bg-slate-50/50 hover:bg-white transition-colors"
+            />
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-0.5 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold text-slate-500">
+              <span>⌘</span>
+              <span>K</span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            {/* Quick Public Link */}
-            <Link
-              href="/"
-              className="text-xs font-semibold text-slate-600 hover:text-blue-600 hidden sm:inline"
+          {/* Right Header: Notification Bell + User Profile */}
+          <div className="flex items-center gap-4">
+            
+            {/* Notification Bell */}
+            <button 
+              type="button"
+              className="relative p-2 rounded-xl text-slate-500 hover:text-purple-600 hover:bg-purple-50 transition-colors"
             >
-              Public Portal →
-            </Link>
-
-            <button className="relative p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors">
-              <Bell className="w-4 h-4" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-blue-600"></span>
+              <Bell className="w-5 h-5" />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-purple-600 ring-2 ring-white" />
             </button>
+
+            {/* User Profile Pill */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowProfileMenu(!showProfileMenu)}
+                className="flex items-center gap-3 p-1.5 rounded-xl hover:bg-slate-50 transition-colors"
+              >
+                <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-sm ring-2 ring-purple-100 overflow-hidden">
+                  <span className="text-xs">AM</span>
+                </div>
+                <div className="text-left hidden sm:block">
+                  <p className="text-xs font-bold text-slate-900 leading-tight flex items-center gap-1">
+                    <span>{displayName}</span>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                  </p>
+                  <p className="text-[10px] text-slate-500 font-medium">{displayRole}</p>
+                </div>
+              </button>
+
+              {/* Profile Dropdown */}
+              {showProfileMenu && (
+                <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 text-xs animate-scale-in">
+                  <div className="p-2 border-b border-slate-100">
+                    <p className="font-bold text-slate-900">{displayName}</p>
+                    <p className="text-[10px] text-slate-500">{authUser?.email || 'arjun.mehta@delhibar.org'}</p>
+                  </div>
+                  <Link
+                    href="/workspace/profile"
+                    onClick={() => setShowProfileMenu(false)}
+                    className="flex items-center gap-2 p-2 rounded-xl text-slate-700 hover:bg-slate-50 font-medium"
+                  >
+                    <User className="w-4 h-4 text-slate-400" />
+                    <span>Advocate Profile</span>
+                  </Link>
+                  <Link
+                    href="/"
+                    onClick={() => setShowProfileMenu(false)}
+                    className="flex items-center gap-2 p-2 rounded-xl text-slate-700 hover:bg-slate-50 font-medium"
+                  >
+                    <ExternalLink className="w-4 h-4 text-slate-400" />
+                    <span>Public Portal</span>
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-2 p-2 rounded-xl text-red-600 hover:bg-red-50 font-medium text-left"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
           </div>
         </header>
 
-        {/* Page Inner Content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        {/* Page Main Content */}
+        <main className="flex-1 p-5 sm:p-7 max-w-7xl w-full mx-auto">
           {children}
         </main>
       </div>
