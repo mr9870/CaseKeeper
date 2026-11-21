@@ -63,6 +63,10 @@ export function splitIntoSentences(text: string): string[] {
       s = s.replaceAll(`__ABB${idx}__`, abb);
     });
     s = s.trim();
+    // Skip metadata headers from narrative sentences
+    if (/^(?:PETITIONER|RESPONDENT|ACT|HEADNOTE|BENCH|IN THE MATTER|VERSUS|DATE OF JUDGMENT)\b/i.test(s)) {
+      continue;
+    }
     if (s.length > 25 && !s.startsWith('---') && !s.startsWith('Page ') && !s.startsWith('PAGE ')) {
       if (/[a-z]/.test(s) && s.split(/\s+/).length >= 5) {
         result.push(s);

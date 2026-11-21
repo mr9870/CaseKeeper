@@ -114,7 +114,9 @@ def split_into_sentences(text: str) -> List[str]:
         for i, abb in enumerate(abbrevs):
             s = s.replace(f"__ABB{i}__", abb)
         s = s.strip()
-        # Clean out non-narrative headers (ALL CAPS titles, verse separators, or page markers)
+        # Clean out non-narrative headers (ALL CAPS titles, metadata markers)
+        if re.match(r'^(?:PETITIONER|RESPONDENT|ACT|HEADNOTE|BENCH|IN THE MATTER|VERSUS|DATE OF JUDGMENT)\b', s, re.I):
+            continue
         if len(s) > 25 and not s.isupper() and not s.startswith(('Page ', 'PAGE ', '---', 'VERSUS', 'IN THE MATTER')):
             # Ensure it has basic grammatical sentence length and mixed case
             if re.search(r'[a-z]', s) and len(s.split()) >= 6:
