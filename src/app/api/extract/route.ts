@@ -1,68 +1,105 @@
 import { NextResponse } from 'next/server';
 
-// Route Handler for Adobe PDF Services Extract API (PRD Section 5.4, 7)
-// Extracts text, tables, and page-level metadata from uploaded court PDFs.
-// Handles password-protected, encrypted, or unsupported scans with visible error states.
+const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || 'http://localhost:8000';
+
 export async function POST(req: Request) {
   try {
-    const { documentId, fileName } = await req.json();
+    const contentType = req.headers.get('content-type') || '';
 
-    if (!documentId) {
-      return NextResponse.json({ error: 'Document ID is required.' }, { status: 400 });
-    }
+    // Case 1: File Upload (multipart/form-data)
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await req.formData();
+      const file = formData.get('file') as File | null;
 
-    const clientId = process.env.ADOBE_PDF_CLIENT_ID;
-    const clientSecret = process.env.ADOBE_PDF_CLIENT_SECRET;
+      if (!file) {
+        return NextResponse.json({ error: 'No file uploaded.' }, { status: 400 });
+      }
 
-    // If Adobe credentials are not configured, simulate deterministic extraction result
-    if (!clientId || clientId === 'your-adobe-pdf-client-id') {
+      // Forward to Python Offline NLP Backend
+      try {
+        const pyFormData = new FormData();
+        pyFormData.append('file', file, file.name);
+
+        const pyRes = await fetch(`${PYTHON_BACKEND_URL}/api/extract/upload`, {
+          method: 'POST',
+          body: pyFormData
+        });
+
+        if (pyRes.ok) {
+          const pyData = await pyRes.json();
+          return NextResponse.json(pyData);
+        } else {
+          const errDetail = await pyRes.text();
+          console.warn('Python backend error:', errDetail);
+        }
+      } catch (pyErr) {
+        console.warn('Could not connect to Python backend on port 8000:', pyErr);
+      }
+
+      // Fallback if Python backend is offline: extract plain text if .txt
+      let extractedText = '';
+      if (file.name.endsWith('.txt')) {
+        extractedText = await file.text();
+      }
+
       return NextResponse.json({
-        documentId,
-        fileName: fileName || 'sample_document.pdf',
-        status: 'done',
-        extractionStatus: 'done',
-        pageCount: 14,
-        extractedTextLength: 12450,
-        citationsFound: 8,
-        previewText: 'In the Court of the Registrar of Cooperative Societies, Delhi. Case No. ARB/ND/2024/0842. In the matter of Suresh Kumar Sharma vs. New Era Cooperative Housing Society Ltd...',
-        isSimulated: true,
-        extractedAt: new Date().toISOString()
+        success: true,
+        data: {
+          filename: file.name,
+          summary: extractedText ? extractedText.slice(0, 300) : `Document ${file.name} received. Start Python backend on port 8000 for deep PDF extraction.`,
+          parties: {
+            petitioner: 'Aggrieved Party',
+            respondent: 'Opposing Party',
+            counsels: [],
+            all_detected_names: []
+          },
+          dates: [],
+          statutes: [],
+          sections: [],
+          monetary_amounts: [],
+          dispute_categories: [],
+          engine: 'Next.js Fallback Receiver'
+        }
       });
     }
 
-    // Server-side integration with Adobe PDF Services Extract API
-    // 1. Obtain access token
-    const tokenRes = await fetch('https://pdf-services.adobe.io/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret || ''
-      })
-    });
+    // Case 2: JSON Payload (Raw text or Document ID)
+    const body = await req.json();
+    const { text, filename } = body;
 
-    if (!tokenRes.ok) {
-      return NextResponse.json(
-        { error: 'Failed to authenticate with Adobe PDF Services. Please check API credentials.' },
-        { status: 502 }
-      );
+    if (text) {
+      try {
+        const pyRes = await fetch(`${PYTHON_BACKEND_URL}/api/extract/text`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, filename: filename || 'document.txt' })
+        });
+        if (pyRes.ok) {
+          const pyData = await pyRes.json();
+          return NextResponse.json(pyData);
+        }
+      } catch (pyErr) {
+        console.warn('Python backend text extraction unreachable:', pyErr);
+      }
     }
 
-    const tokenData = await tokenRes.json();
-    const accessToken = tokenData.access_token;
-
     return NextResponse.json({
-      documentId,
-      status: 'done',
-      extractionStatus: 'done',
-      accessTokenObtained: true,
-      message: 'Document dispatched for Adobe PDF text structure extraction.',
-      isSimulated: false
+      success: true,
+      data: {
+        filename: filename || 'document.txt',
+        summary: text ? text.slice(0, 300) : 'No text provided.',
+        parties: { petitioner: 'Petitioner', respondent: 'Respondent', counsels: [] },
+        dates: [],
+        statutes: [],
+        sections: [],
+        monetary_amounts: []
+      }
     });
+
   } catch (error: any) {
-    console.error('PDF extraction error:', error);
+    console.error('Extraction API error:', error);
     return NextResponse.json(
-      { error: 'An error occurred while parsing the case document.' },
+      { error: 'An error occurred while processing the document: ' + (error?.message || '') },
       { status: 500 }
     );
   }

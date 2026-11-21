@@ -38,8 +38,13 @@ function generateLocalBrief(caseItem: CaseItem, documents: CaseDocument[], curre
   const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
+  // Check if any document has an actual extracted summary
+  const docWithSummary = documents.find(d => d.summary && d.summary.length > 25);
+
   // Summary
-  const summary = `This matter involves ${caseItem.title}. ${caseItem.description || 'The nature of the dispute pertains to legal proceedings initiated before the competent authority.'}. The case is currently ${caseItem.status} before ${caseItem.court}, and is listed under reference number ${caseItem.referenceNumber}.`;
+  const summary = docWithSummary?.summary
+    ? docWithSummary.summary
+    : `This matter involves ${caseItem.title}. ${caseItem.description || 'The nature of the dispute pertains to legal proceedings initiated before the competent authority.'}. The case is currently ${caseItem.status} before ${caseItem.court}, and is listed under reference number ${caseItem.referenceNumber}.`;
 
   // Parties
   const parties: BriefVersion['parties'] = [
